@@ -1,49 +1,63 @@
 from drain3 import TemplateMiner
+from drain3.template_miner_config import TemplateMinerConfig
 import pandas as pd
+import re
 
 template_miner = TemplateMiner()
 
-detailed_counts = {}
-alert_counts = {}
-non_alert_counts = {}
+# define the log format and regex for parsing the logs
+log_format = "<Label> <Timestamp> <Date> <Node> <Time> <NodeRepeat> <Type> <Component> <Level> <Content>"
 
-with open("BGL/BGL.log", "r", encoding='utf-8') as log_file:
-    for i,line in enumerate(log_file):
-        if i % 10000 == 0:
-            print(f"Processing line {i}")
-        is_alert = not line.startswith("-")
+# define a regex pattern based on the log format
+log_pattern = re.compile(
+    r"(?P<Label>[-\d]+) "
+    r"(?P<Timestamp>\d+) "
+    r"(?P<Date>\d{4}\.\d{2}\.\d{2}) "
+    r"(?P<Node>[\w:-]+) "
+    r"(?P<Time>\d{4}-\d{2}-\d{2}-\d{2}\.\d{2}\.\d{2}\.\d+) "
+    r"(?P<NodeRepeat>[\w:-]+) "
+    r"(?P<Type>\w+) "
+    r"(?P<Component>\w+) "
+    r"(?P<Level>\w+) "
+    r"(?P<Content>.*)"
+)
+config = TemplateMinerConfig()
+config.load("drain3.ini")
+config.profiling_enabled = True
+drain_parser = TemplateMiner(config=config)
 
-        result = template_miner.add_log_message(line.strip())
 
-        template_id = result["cluster_id"]
-        template_description = result["template_mined"]
+with open("BGL/BGL.log", "r", encoding='utf-8') as f:
+    logs = f.readlines()
+for i,line in enumerate(logs):
+    if i % 10000 == 0:
+        print(f"Matching line {i}")
+    match = log_pattern.match(line)
+    if match :
+        log_content = match.group("Content")
+        drain_parser.add_log_message(log_content)
 
-        if template_id not in detailed_counts:
-            detailed_counts[template_id] = {
-                "Description": template_description,
-                "Alert Count": 0,
-                "Non-Alert Count": 0
-            }
+parsed_events = []
+for i,line in enumerate(logs):
+    isalert = not line.startswith("-")
+    if i % 10000 == 0:
+        print(f"Parsing line {i}")
+    match = log_pattern.match(line)
+    if match :
+        log_content = match.group("Content")
+        result = drain_parser.match(log_content)
+        if result :
+            template_id = result.cluster_id
+            template_description = result.get_template()
+            parsed_events.append({
+                "Template ID": template_id,
+                "Template Description": template_description,
+                "Log Content": log_content,
+                "Is Alert": isalert
+            })
 
-        if is_alert:
-            detailed_counts[template_id]["Alert Count"] += 1
-            alert_counts[template_id] = alert_counts.get(template_id, 0) + 1
-        else:
-            detailed_counts[template_id]["Non-Alert Count"] += 1
-            non_alert_counts[template_id] = non_alert_counts.get(template_id, 0) + 1
+parsed_df = pd.DataFrame(parsed_events)
+parsed_df.to_csv("BGL_parsed.csv", index=False)
 
-detailed_matrix_df = pd.DataFrame.from_dict(detailed_counts, orient="index")
-detailed_matrix_df.index.name = "Template ID"
-
-transposed_matrix_df = pd.DataFrame({
-    "Alert": pd.Series(alert_counts),
-    "Non-Alert": pd.Series(non_alert_counts)
-}).fillna(0).astype(int).T
-
-detailed_matrix_df.to_csv("detailed_log_matrix.csv")
-transposed_matrix_df.to_csv("alert_nonalert_matrix.csv")
-
-print("Detailed Matrix:")
-print(detailed_matrix_df)
-print("\nTransposed Matrix:")
-print(transposed_matrix_df)
+#IL FAUDRA DECOUPER MON TABLEAU PAR rapport à la date ou pour une session et compter le nombre pour chaque evenement et si on a une alerte ou non
+#C'est cette matrice qui par la suite va nous servir à entrainer le modele avec notre sur discord
