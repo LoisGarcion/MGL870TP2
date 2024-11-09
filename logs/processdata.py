@@ -33,7 +33,7 @@ with open("BGL/BGL.log", "r", encoding='utf-8') as f:
 for i,line in enumerate(logs):
     if i % 10000 == 0:
         print(f"Matching line {i}")
-    if i > 500000:
+    if i > 1000000:
         break
     match = log_pattern.match(line)
     if match :
@@ -47,7 +47,7 @@ for i,line in enumerate(logs):
     isalert = int(isalert)
     if i % 10000 == 0:
         print(f"Parsing line {i}, isalert={isalert}")
-    if i > 500000:
+    if i > 1000000:
         break
     match = log_pattern.match(line)
     if match :
@@ -95,8 +95,8 @@ template_counts = (
 )
 
 template_counts = template_counts.transpose()
-template_counts['Interval Start'] = template_counts.index
-template_counts['Has Alert'] = alert_flag.values  # Now 'Has Alert' is 0 or 1
-template_counts = template_counts[['Interval Start'] + [col for col in template_counts.columns if col not in ['Interval Start', 'Has Alert']] + ['Has Alert']]
+template_counts['Datetime'] = template_counts.index
+template_counts['Anomaly'] = (alert_flag.values > 0).astype(int)
+template_counts = template_counts[['Datetime'] + [col for col in template_counts.columns if col not in ['Datetime', 'Anomaly']] + ['Anomaly']]
 
 template_counts.to_csv("BGL_template_counts_30min.csv", index=False)
