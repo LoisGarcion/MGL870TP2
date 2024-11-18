@@ -5,6 +5,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import precision_recall_curve
 
 # Function to load data, train, and evaluate models
 def process_data(file_path, model_name_suffix=""):
@@ -20,7 +21,6 @@ def process_data(file_path, model_name_suffix=""):
     # Split the data into 60% training, 20% validation, and 20% testing
     train_size = int(0.60 * len(df))
     val_size = int(0.20 * len(df))
-    test_size = len(df) - train_size - val_size
 
     # Adjusted Splits for Time-Series Data
     train_df = df.iloc[:train_size]
@@ -43,41 +43,25 @@ def process_data(file_path, model_name_suffix=""):
     X_test = scaler.transform(X_test)
 
     # Train Random Forest
-    rf_model = RandomForestClassifier()
+    rf_model = RandomForestClassifier(class_weight='balanced')
     rf_model.fit(X_train, y_train)
     rf_pred = rf_model.predict_proba(X_test)[:, 1]
     rf_val = rf_model.predict_proba(X_val)[:, 1]
 
     # Train Logistic Regression
-    lr_model = LogisticRegression(max_iter=10000000)
+    lr_model = LogisticRegression(max_iter=1000, class_weight='balanced')
     lr_model.fit(X_train, y_train)
     lr_pred = lr_model.predict_proba(X_test)[:, 1]
 
     # Evaluation function
-    def evaluate_model_random_forest(y_true, y_pred, model_name):
-        threshold = 0.3
+    def evaluate_model(y_true, y_pred, model_name, threshold):
         rf_val_pred = (y_pred >= threshold).astype(int)
         accuracy = accuracy_score(y_true, rf_val_pred)
         precision = precision_score(y_true, rf_val_pred)
         recall = recall_score(y_true, rf_val_pred)
         auc = roc_auc_score(y_true, y_pred)
 
-        print(f"Performance of {model_name}:")
-        print(f"Accuracy: {accuracy:.4f}")
-        print(f"Precision: {precision:.4f}")
-        print(f"Recall: {recall:.4f}")
-        print(f"AUC: {auc:.4f}")
-        print('-' * 30)
-
-    # Evaluation function
-    def evaluate_model_logistic_regression(y_true, y_pred, model_name):
-        threshold = 0.5
-        rf_val_pred = (y_pred >= threshold).astype(int)
-        accuracy = accuracy_score(y_true, rf_val_pred)
-        precision = precision_score(y_true, rf_val_pred)
-        recall = recall_score(y_true, rf_val_pred)
-        auc = roc_auc_score(y_true, y_pred)
-
+        print(f"The optimal threshold for {model_name} is {threshold}")
         print(f"Performance of {model_name}:")
         print(f"Accuracy: {accuracy:.4f}")
         print(f"Precision: {precision:.4f}")
@@ -86,11 +70,11 @@ def process_data(file_path, model_name_suffix=""):
         print('-' * 30)
 
     # Evaluate each model on the test set
-    evaluate_model_random_forest(y_test, rf_pred, f"Random Forest {model_name_suffix}")
-    evaluate_model_logistic_regression(y_test, lr_pred, f"Logistic Regression {model_name_suffix}")
-
-# Process the new 10-minute interval data
-process_data('BGL_template_counts_error_prediction.csv', model_name_suffix="ERROR PREDICTION")
+    evaluate_model(y_test, rf_pred, f"Random Forest {model_name_suffix}", threshold=0.3)
+    evaluate_model(y_test, lr_pred, f"Logistic Regression {model_name_suffix}",threshold=0.3)
 
 # Process the original 30-minute interval data
 process_data('BGL_template_counts_error_detection.csv', model_name_suffix="ERROR DETECTION")
+
+# Process the new 10-minute interval data
+process_data('BGL_template_counts_error_prediction.csv', model_name_suffix="ERROR PREDICTION")

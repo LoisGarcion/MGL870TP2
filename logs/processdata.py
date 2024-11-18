@@ -89,13 +89,14 @@ print(f"Found {len(templates)} templates and {len(parsed_events)} parsed events"
 
 # Save parsed events and templates to CSV
 parsed_df = pd.DataFrame(parsed_events)
+# print number of lines of parsed_df
+print(len(parsed_df))
 parsed_df.to_csv("BGL_parsed.csv", index=False)
 
-templates_df = pd.DataFrame([
-    {"Template ID": tid, "Template Description": desc}
-    for tid, desc in templates.items()
-])
-templates_df.to_csv("BGL_templates.csv", index=False)
+# Shuffle and limit to 500,000 rows
+shuffled_df = parsed_df.sample(frac=1).reset_index(drop=True)
+shuffle_tiny_df = parsed_df.sample(n=min(len(shuffled_df), 900000)).reset_index(drop=True)
+shuffle_tiny_df.to_csv("BGL_parsed_tiny.csv", index=False)
 
 # Step 2: Generate matrices for error detection and prediction
 parsed_df["Timestamp"] = pd.to_datetime(parsed_df["Timestamp"].astype(int), unit="s")
