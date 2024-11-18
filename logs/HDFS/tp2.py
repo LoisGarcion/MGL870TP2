@@ -125,8 +125,6 @@ with open("fileBlk2.csv", 'w') as file3:
 
 
 
-
-
                 
                 
 

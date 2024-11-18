@@ -7,6 +7,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
 
+
 # Charger les données
 def load_data(file_path):
     # Charger le fichier CSV
