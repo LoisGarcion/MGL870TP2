@@ -99,7 +99,6 @@ with open("fileBlk.txt", 'w') as file2:
                     ligne += 1  
                     
                 existe = False   
-print("finished")  
 
 
 with open("fileBlk.txt", "r") as file:
@@ -131,3 +130,4 @@ with open("fileBlk2.csv", 'w') as file3:
                 
                 
 
+print("finished")  

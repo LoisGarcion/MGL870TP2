@@ -6,6 +6,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_a
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
+
 # Charger les données
 def load_data(file_path):
     # Charger le fichier CSV
