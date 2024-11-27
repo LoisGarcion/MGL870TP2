@@ -49,7 +49,7 @@ blk_pattern  = re.compile(r'blk_[-\d]+')
 templ_pattern = re.compile(r'E.*')
 
 config = TemplateMinerConfig()
-config.load("drain3.ini")
+config.load("../drain3.ini")
 config.profiling_enabled = True
 drain_parser = TemplateMiner(config=config)
 ligne = 0
