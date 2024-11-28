@@ -9,15 +9,10 @@ from collections import defaultdict
 anomalies = []
 def filtrer_lignes_avec_anomaly():
 
-    # Ouvrir le fichier d'entrée en mode lecture
     with open("HDFS_v1/preprocessed/anomaly_label.csv", 'r') as fichier:
-            # Lire chaque ligne du fichier
             for ligne in fichier:
-                # Diviser la ligne en deux parties : blk et état
                 blk, statut = ligne.strip().split(",")
-                # Vérifier si le statut est 'Anomaly'
                 if statut.strip() == "Anomaly":
-                    # Ajouter le blk à la liste
                     anomalies.append(blk)
                     
 filtrer_lignes_avec_anomaly()
