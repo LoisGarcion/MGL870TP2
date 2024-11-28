@@ -2,82 +2,88 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score
 from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import Pipeline
+from sklearn.metrics import precision_recall_curve
+import os
+#from imblearn.under_sampling import SMOTE
+from imblearn.over_sampling import SMOTE
 
 
 
-# Charger les données
-def load_data(file_path):
-    # Charger le fichier CSV
+
+# Function to load data, train, and evaluate models
+def process_data(file_path, model_name_suffix=""):
+    # Load the data
     df = pd.read_csv(file_path)
-
-    # Convertir les labels en valeurs numériques
     df['Label'] = df['Label'].map({'Normal': 0, 'Anomaly': 1})
 
-    # Séparer les caractéristiques (features) et les étiquettes (labels)
-    X = df.drop(columns=['BlockId', 'Label'])  # Supprimer BlockId et Label pour obtenir les features
-    y = df['Label']  # Label (cible)
+    output_dir="data_splits"
+    model_name_suffix=""
+    os.makedirs(output_dir, exist_ok=True)
+    
+    
+    # Split the data into 60% training, 20% validation, and 20% testing
+    train_size = int(0.60 * len(df))
+    val_size = int(0.20 * len(df))
 
-    return X, y
+    # Adjusted Splits for Time-Series Data
+    train_df = df.iloc[:train_size]
+    val_df = df.iloc[train_size:train_size + val_size]
+    test_df = df.iloc[train_size + val_size:]
 
-# Diviser les données en ensembles d'entraînement, validation, test
-def split_data(X, y):
-    # Diviser les données en 60% entraînement, 20% validation, 20% test
-    X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.4, random_state=42, stratify=y)
-    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42, stratify=y_temp)
+    # Separate features and labels
+    X_train = train_df.drop(columns=['BlockId', 'Label'])  # Features
+    y_train = train_df['Label'].astype(int)  # Labels
+    
+    
 
-    return X_train, X_val, X_test, y_train, y_val, y_test
+    X_val = val_df.drop(columns=['BlockId', 'Label'])
+    y_val = val_df['Label'].astype(int)
+    X_val_resampled, y_val_resampled = SMOTE().fit_resample(X_val, y_val)
 
-# Évaluer le modèle
-def evaluate_model(model, X, y, model_name="Model"):
-    y_pred = model.predict(X)
-    y_pred_prob = model.predict_proba(X)[:, 1]
 
-    accuracy = accuracy_score(y, y_pred)
-    precision = precision_score(y, y_pred)
-    recall = recall_score(y, y_pred)
-    auc = roc_auc_score(y, y_pred_prob)
+    X_test = test_df.drop(columns=['BlockId', 'Label'])
+    y_test = test_df['Label'].astype(int)
+    X_test_resampled, y_test_resampled = SMOTE().fit_resample(X_test, y_test)
 
-    print(f"Performance of {model_name}:")
-    print(f"Accuracy: {accuracy:.4f}")
-    print(f"Precision: {precision:.4f}")
-    print(f"Recall: {recall:.4f}")
-    print(f"AUC: {auc:.4f}")
-    print('-' * 30)
 
-# Charger et traiter les données
-file_path = 'resultat2.csv'  # Remplacez par le chemin vers votre fichier
-X, y = load_data(file_path)
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_val = scaler.transform(X_val)
+    X_test = scaler.transform(X_test)
 
-# Diviser les données
-X_train, X_val, X_test, y_train, y_val, y_test = split_data(X, y)
+    # Train Random Forest
+    rf_model = RandomForestClassifier(class_weight='balanced')
+    rf_model.fit(X_train, y_train)
+    rf_pred = rf_model.predict_proba(X_test)[:, 1]
+    rf_val = rf_model.predict_proba(X_val)[:, 1]
 
-# Pipeline pour normalisation et entraînement
-pipeline_rf = Pipeline([
-    ('scaler', StandardScaler()),
-    ('classifier', RandomForestClassifier(random_state=42))
-])
+    # Train Logistic Regression
+    lr_model = LogisticRegression(max_iter=1000, class_weight='balanced')
+    lr_model.fit(X_train, y_train)
+    lr_pred = lr_model.predict_proba(X_test)[:, 1]
+    
+    
+    # Evaluation function
+    def evaluate_model(y_true, y_pred, model_name, threshold):
+        rf_val_pred = (y_pred >= threshold).astype(int)
+        accuracy = accuracy_score(y_true, rf_val_pred)
+        precision = precision_score(y_true, rf_val_pred)
+        recall = recall_score(y_true, rf_val_pred)
+        auc = roc_auc_score(y_true, y_pred)
 
-pipeline_lr = Pipeline([
-    ('scaler', StandardScaler()),
-    ('classifier', LogisticRegression(max_iter=1000, random_state=42))
-])
+        print(f"Performance of {model_name}:")
+        print(f"Accuracy: {accuracy:.4f}")
+        print(f"Precision: {precision:.4f}")
+        print(f"Recall: {recall:.4f}")
+        print(f"AUC: {auc:.4f}")
+        print('-' * 30)
 
-# Entraîner le modèle Random Forest
-pipeline_rf.fit(X_train, y_train)
-print("Validation Performance (Random Forest):")
-evaluate_model(pipeline_rf, X_val, y_val, model_name="Random Forest")
+    # Evaluate each model on the test set
+    evaluate_model(y_test, rf_pred, f"Random Forest {model_name_suffix}", threshold=0.5)
+    evaluate_model(y_test, lr_pred, f"Logistic Regression {model_name_suffix}",threshold=0.5)
 
-# Entraîner le modèle Logistic Regression
-pipeline_lr.fit(X_train, y_train)
-print("Validation Performance (Logistic Regression):")
-evaluate_model(pipeline_lr, X_val, y_val, model_name="Logistic Regression")
 
-# Tester les modèles sur l'ensemble de test
-print("Test Performance (Random Forest):")
-evaluate_model(pipeline_rf, X_test, y_test, model_name="Random Forest")
-
-print("Test Performance (Logistic Regression):")
-evaluate_model(pipeline_lr, X_test, y_test, model_name="Logistic Regression")
+process_data('resultat2.csv', model_name_suffix="ERROR PREDICTION")
